@@ -36,22 +36,13 @@ var playConfigDefault = {
 var playConfig = null;
 var config = null;
 var isShowAdvanced = false;
-
 var dateDiffFb = 0;
+var pitches = {};
 
-// Initialize Firebase
-var configFirebase = {
-    apiKey: "AIzaSyDKB9w_qIKETeT1Igv3pIAUTSZfq3axo4U",
-    authDomain: "punisher-2eafa.firebaseapp.com",
-    databaseURL: "https://punisher-2eafa.firebaseio.com",
-    projectId: "punisher-2eafa",
-    storageBucket: "punisher-2eafa.appspot.com",
-    messagingSenderId: "693554201973"
-};
-firebase.initializeApp(configFirebase);
+firebase.initializeApp({ databaseURL: "https://csitpitch.firebaseio.com" })
 var database = firebase.database();
 
-function readDeviceOrientation() {
+function readDeviceOrientation () {
     if (Math.abs(window.orientation) >= 0) {
         if (Math.abs(window.orientation) === 90) {
             // Landscape
@@ -77,59 +68,23 @@ function readDeviceOrientation() {
     }
 }
 
-function getUrlVars() {
+function getUrlVars () {
     var vars = {};
     var parts = window.location.href.replace(/[?&]+([^=&]+)=([^&]*)/gi,
-        function(m, key, value) {
+        function (m, key, value) {
             vars[key] = value.replace('#', '');
         });
     return vars;
 }
 
-$(function() {
-    // if (window.innerWidth < window.innerHeight) {
-    //     $(window).scrollTop(0);
-    //     if (timer != null) {
-    //         $("#displayTimer").hide();
-    //         $("#controls").hide();
-    //         $("#turnScreen").show();
-    //     } else {
-    //         $("#welcomeCard").hide();
-    //         $("#turnScreen").show();
-    //     }
-    // }
-    // window.addEventListener('orientationchange', function(event) {
-    //     if (window.innerWidth < window.innerHeight) {
-    //         $(window).scrollTop(0);
-    //         if (timer != null) {
-    //             $("#displayTimer").hide();
-    //             $("#controls").hide();
-    //             $("#turnScreen").show();
-    //         } else {
-    //             $("#welcomeCard").hide();
-    //             $("#turnScreen").show();
-    //         }
-    //     } else {
-    //         if (timer != null) {
-    //             $("#displayTimer").show();
-    //             $("#controls").show();
-    //             $("#turnScreen").hide();
-    //         } else {
-    //             $("#welcomeCard").show();
-    //             $("#turnScreen").hide();
-    //         }
-    //     }
-    // }, false);
-    //readDeviceOrientation();
-    //window.onorientationchange = readDeviceOrientation;
+$(function () {
     ratio = window.innerWidth / window.innerHeight;
-    //console.log(ratio);
     if (ratio > 1.90) {
         $('#controls').attr('style', 'position:fixed; bottom:2%; left: 50%;transform: translate(-50%, 0) ; opacity: 0.1');
     } else {
         $('#controls').attr('style', 'vertical-align: top; margin-top: 0%; padding-top: 0%; opacity: 0.1; text-align:center');
     }
-    $(window).resize(function() {
+    $(window).resize(function () {
         ratio = window.innerWidth / window.innerHeight;
         if ($('#controls').is(":visible")) {
             if (ratio > 1.90) {
@@ -141,13 +96,13 @@ $(function() {
     });
     $("#ocrAlert").hide();
 
-    $("#controls").hover(function() {
+    $("#controls").hover(function () {
         $(this).css({ opacity: 1 });
-    }, function() {
+    }, function () {
         $(this).css({ opacity: 0.2 });
     });
 
-    $(document).bind('touchmove', function(e) {
+    $(document).bind('touchmove', function (e) {
         e.preventDefault();
     });
 
@@ -191,14 +146,14 @@ $(function() {
     }
     var refFirebase = database.ref('cronopitch/' + idFirebase);
     refFirebase.on('value', (data) => {
-        database.ref("/.info/serverTimeOffset").on('value', function(offset) {
+        database.ref("/.info/serverTimeOffset").on('value', function (offset) {
             var offsetVal = offset.val() || 0;
             var serverTime = Date.now() + offsetVal;
             dateDiffFb = serverTime - (Date.now());
             //console.log(serverTime, dateDiffFb, Date.now(), (Date.now()));
         });
         $("#idFirebase").html('' + idFirebase);
-        qrcode.makeCode("https://cronopitch.com/?id=" + idFirebase);
+        qrcode.makeCode("https://csitpitch.web.app/?id=" + idFirebase);
         var lastIdClient = data.val().idClient;
         //console.log(idClient, lastIdClient);
         if (lastIdClient != idClient) {
@@ -219,10 +174,11 @@ $(function() {
                 isWriteFB = true;
             }
         }
+        pitches = data.val().pitches;
+        refreshPitchSelect();
     });
     //var refConfig = database.ref('cronopitch/' + idFirebase + '/config');
     //refConfig.set(config);
-
 
 
     $("#fontColorDefault").val(config.fontColorDefault);
@@ -232,8 +188,17 @@ $(function() {
 
     $("#controls").hide();
     $("#showImgTimer").hide();
+    $('#pitchInfo').hide();
 
-    $("#saveAdvanced").click(function() {
+    if (config.pitchId != undefined) {
+        $("#pitchSelect").val(config.pitchId);
+    }
+    $("#pitchSelect").change(function () {
+        config.pitchId = $(this).val()
+        createCookie('config', JSON.stringify(config), 30);
+    });
+
+    $("#saveAdvanced").click(function () {
         if ($("#fontColorDefault").val().length == 7) {
             config.fontColorDefault = $("#fontColorDefault").val();
             config.bgColorInverted = $("#fontColorDefault").val();
@@ -268,7 +233,7 @@ $(function() {
         $('#config').modal('toggle');
         $(window).scrollTop(0);
     });
-    $("#closeAdvanced").click(function() {
+    $("#closeAdvanced").click(function () {
         $("#fontColorDefault").val(config.fontColorDefault);
         $("#bgColorDefault").val(config.bgColorDefault);
         $("#msgEnd").val(config.msgEnd);
@@ -277,7 +242,7 @@ $(function() {
         isShowAdvanced = false;
         $(window).scrollTop(0);
     });
-    $("#advanced").click(function() {
+    $("#advanced").click(function () {
         isShowAdvanced = true;
         if (config.continuous == true) {
             $('#continuous').prop('checked', true);
@@ -309,21 +274,21 @@ $(function() {
         $("#msgEnd").val(config.msgEnd);
         $("#secondsAlert").val(config.secondsAlert);
     });
-    $("#resetConfig").click(function() {
+    $("#resetConfig").click(function () {
         config = JSON.parse(JSON.stringify(configDefault));
         config.idFirebase = idFirebase;
         createCookie('config', JSON.stringify(config), 30);
         $('#config').modal('toggle');
     });
 
-    $("#showImage").click(function() {
+    $("#showImage").click(function () {
         if ($("#showImage").is(':checked')) {
             $("#imgBox").show();
         } else {
             $("#imgBox").hide();
         }
     });
-    $("#continuous").click(function() {
+    $("#continuous").click(function () {
         if ($("#continuous").is(':checked')) {
             $('#showMsgEnd').attr('checked', false);
             $("#showMsgEnd").prop('disabled', true);
@@ -337,16 +302,16 @@ $(function() {
             }
         }
     });
-    $("#connectOCR").click(function() {
+    $("#connectOCR").click(function () {
         var value = $("#ocrCode").val();
         if (value.length > 0) {
-            window.open("https://cronopitch.com/?id=" + $("#ocrCode").val(), "_self");
+            window.open("https://csitpitch.web.app/?id=" + $("#ocrCode").val(), "_self");
         }
     });
-    $("#refreshCode").click(function() {
-        window.open("https://cronopitch.com/?id=" + Math.floor(Math.random() * (999999 - 0) + 0) + '&refresh=1', "_self");
+    $("#refreshCode").click(function () {
+        window.open("https://csitpitch.web.app/?id=" + Math.floor(Math.random() * (999999 - 0) + 0) + '&refresh=1', "_self");
     });
-    $("#showMsgEnd").click(function() {
+    $("#showMsgEnd").click(function () {
         if ($("#showMsgEnd").is(':checked')) {
             config.showMsgEnd = true;
             $("#msgEndGroup").show();
@@ -355,12 +320,12 @@ $(function() {
             $("#msgEndGroup").hide();
         }
     });
-    $("#time").change(function() {
+    $("#time").change(function () {
         if ($(this).val() == -1) {
             $('#custom').modal('toggle');
         }
     });
-    $("#customMinutes").keyup(function() {
+    $("#customMinutes").keyup(function () {
         var minutes = parseInt($(this).val());
         //console.log(minutes);
         if (minutes != 0) {
@@ -371,10 +336,10 @@ $(function() {
             }
         }
     });
-    $('#custom').on('shown.bs.modal', function() {
+    $('#custom').on('shown.bs.modal', function () {
         $('#customMinutes').focus();
     });
-    $("#saveCustom").click(function() {
+    $("#saveCustom").click(function () {
         resetTimer();
         var minutes = parseInt($("#customMinutes").val());
         switch (minutes) {
@@ -394,37 +359,38 @@ $(function() {
         $('#custom').modal('toggle');
         prepareTimer(0);
     });
-    $("#closeCustom").click(function() {
+    $("#closeCustom").click(function () {
         $('#time').val("10");
         $('#custom').modal('toggle');
     });
 
-    $("#undoTime").click(function() {
+    $("#undoTime").click(function () {
         var minutesLeft = playConfig.minutesLeft;
         if (minutesLeft != null) {
             resetTimer();
             prepareTimer(minutesLeft);
         }
     });
-    $("#setTime").click(function() {
+    $("#setTime").click(function () {
         prepareTimer(0);
+        setPitchInfo($('#pitchSelect').val())
     });
-    $("#resetTime").click(function() {
+    $("#resetTime").click(function () {
         resetTimer();
     });
-    $("#play").click(function() {
+    $("#play").click(function () {
         resumeTimer();
     });
-    $("#pause").click(function() {
+    $("#pause").click(function () {
         pauseTimer();
     });
-    $("#invertColors").click(function() {
+    $("#invertColors").click(function () {
         invertColors();
     });
-    $("#bg_mask").click(function() {
+    $("#bg_mask").click(function () {
         resetTimer();
     });
-    $("#displayTimer").click(function() {
+    $("#displayTimer").click(function () {
         if (countDownDate != null) {
             if (timer == null) {
                 resumeTimer();
@@ -434,7 +400,7 @@ $(function() {
         }
     });
     cookiesTimer();
-    $(window).keydown(function(e) {
+    $(window).keydown(function (e) {
         switch (e.keyCode) {
             case 48:
             case 49:
@@ -520,18 +486,18 @@ $(function() {
                 return;
         }
     });
-    var colpick = $('.color').each(function() {
+    var colpick = $('.color').each(function () {
         $(this).minicolors({
             control: $(this).attr('data-control') || 'hue',
             inline: $(this).attr('data-inline') === 'true',
             letterCase: 'uppercase',
             opacity: false,
-            change: function(hex, opacity) {
+            change: function (hex, opacity) {
                 if (!hex) return;
                 if (opacity) hex += ', ' + opacity;
                 try {
                     //console.log(hex);
-                } catch (e) {}
+                } catch (e) { }
                 $(this).select();
             },
             theme: 'bootstrap'
@@ -542,7 +508,7 @@ $(function() {
     $('#inlinecolors').minicolors({
         inline: true,
         theme: 'bootstrap',
-        change: function(hex) {
+        change: function (hex) {
             if (!hex) return;
             $inlinehex.html(hex);
         }
@@ -552,15 +518,17 @@ $(function() {
 var blinkTimer = null;
 var isInvertedColors = 0;
 
-function invertColors() {
+function invertColors () {
     getTime();
     if (isInvertedColors == 0) {
         $("body").css("background-color", config.bgColorInverted);
+        $("body").css("color", config.bgColorDefault);
         $("#displayTimer").css('color', config.fontColorInverted);
         $("#pause").css("color", config.fontColorInverted);
         $("#play").css("color", config.fontColorInverted);
         $("#resetTime").css("color", config.fontColorInverted);
         $("#undoTime").css("color", config.fontColorInverted);
+        $("#invertColors").css("color", config.fontColorInverted);
         $("#invertColors").css("color", config.fontColorInverted);
         isInvertedColors = 1;
     } else {
@@ -571,7 +539,7 @@ function invertColors() {
     createCookie('playConfig', JSON.stringify(playConfig), 30);
 }
 
-function pauseTimer() {
+function pauseTimer () {
     getTime();
     if (timer != null) {
         var now = (Date.now()) + dateDiffFb;
@@ -580,8 +548,8 @@ function pauseTimer() {
         clearInterval(timer);
         timer = null;
         showTimer();
-        blinkTimer = setInterval(function() {
-            $("#displayTimer").fadeOut(500, function() {
+        blinkTimer = setInterval(function () {
+            $("#displayTimer").fadeOut(500, function () {
                 $(this).fadeIn(500);
             });
         }, 500);
@@ -596,7 +564,7 @@ function pauseTimer() {
 var isResumed = false;
 var continuous = false;
 
-function resumeTimer() {
+function resumeTimer () {
     getTime();
     clearInterval(blinkTimer);
     if (!continuous) {
@@ -615,7 +583,7 @@ function resumeTimer() {
     $(window).scrollTop(0);
 }
 
-function cookiesTimer() {
+function cookiesTimer () {
     return new Promise((resolve, reject) => {
         //console.log(playConfig.time);
         if (isShowAdvanced) {
@@ -647,7 +615,7 @@ function cookiesTimer() {
     });
 }
 
-function prepareTimer(minutesLeft) {
+function prepareTimer (minutesLeft) {
     resetTimer();
     $("#invertColors").show();
     if (timer != null) {
@@ -668,7 +636,7 @@ function prepareTimer(minutesLeft) {
     }
 }
 
-function resetTimer() {
+function resetTimer () {
     getTime();
     clearInterval(timer);
     clearInterval(blinkTimer);
@@ -686,14 +654,16 @@ function resetTimer() {
     $("#displayTimer").html('');
     setColorDefault();
     $("#showImgTimer").hide();
+    $('#pitchInfo').hide();
     $("body").css("background-color", '#FFFFFF');
     countDownDate = null;
     hideFrontLayer();
 }
 
 
-function setColorDefault() {
+function setColorDefault () {
     $("body").css("background-color", config.bgColorDefault);
+    $("body").css("color", config.bgColorInverted);
     $("#displayTimer").css('color', config.fontColorDefault);
     $("#pause").css("color", config.fontColorDefault);
     $("#play").css("color", config.fontColorDefault);
@@ -702,7 +672,7 @@ function setColorDefault() {
     $("#invertColors").css("color", config.fontColorDefault);
 }
 
-function setTimer(countDownDate) {
+function setTimer (countDownDate) {
     return new Promise((resolve, reject) => {
         getTime();
         continuous = false;
@@ -730,7 +700,7 @@ function setTimer(countDownDate) {
             $('#imgTimer').attr('src', config.imgTimer);
         }
 
-        timer = setInterval(function() {
+        timer = setInterval(function () {
             showTimer();
             // if (isPaused) {
             //     pauseTimer();
@@ -739,7 +709,7 @@ function setTimer(countDownDate) {
     });
 }
 
-function showTimer() {
+function showTimer () {
     $(window).scrollTop(0);
     var now = Date.now() + dateDiffFb;
     distance = countDownDate - now;
@@ -772,6 +742,10 @@ function showTimer() {
             $("#resetTime").css("color", config.fontColorAlert);
             $("#undoTime").css("color", config.fontColorAlert);
             $("#invertColors").hide();
+            $('#pitchInfo').hide();
+        }
+        else {
+            $('#pitchInfo').show();
         }
     } else {
         setColorDefault();
@@ -794,7 +768,7 @@ function showTimer() {
     }
 }
 
-function createCookie(name, value, days) {
+function createCookie (name, value, days) {
     var expires = "";
     if (days) {
         var date = new Date();
@@ -821,7 +795,7 @@ function createCookie(name, value, days) {
     // }
 }
 
-function readCookie(name) {
+function readCookie (name) {
     var nameEQ = name + "=";
     var ca = document.cookie.split(';');
     for (var i = 0; i < ca.length; i++) {
@@ -832,8 +806,8 @@ function readCookie(name) {
     return null;
 }
 
-function getTime() {
-    database.ref("/.info/serverTimeOffset").on('value', function(offset) {
+function getTime () {
+    database.ref("/.info/serverTimeOffset").on('value', function (offset) {
         var offsetVal = offset.val() || 0;
         var serverTime = Date.now() + offsetVal;
         dateDiffFb = serverTime - (Date.now());
@@ -841,13 +815,13 @@ function getTime() {
     });
 }
 
-function eraseCookie(name) {
+function eraseCookie (name) {
     // var refTimer = database.ref('cronopitch/' + idFirebase + '/' + name);
     // refTimer.set("");
     createCookie(name, "", -1);
 }
 
-function showFrontLayer() {
+function showFrontLayer () {
     //animateRotate(-20);
     getTime();
     $("#frontlayer").text(config.msgEnd);
@@ -855,12 +829,12 @@ function showFrontLayer() {
     $("#frontlayer").css({ visibility: "visible", opacity: 0.0 }).animate({ opacity: 1.0 }, 100);
 }
 
-function hideFrontLayer() {
+function hideFrontLayer () {
     document.getElementById('bg_mask').style.visibility = 'hidden';
     document.getElementById('frontlayer').style.visibility = 'hidden';
 }
 
-function animateRotate(angle) {
+function animateRotate (angle) {
     // caching the object for performance reasons
     var $elem = $('#bg_mask');
 
@@ -868,7 +842,7 @@ function animateRotate(angle) {
     // (starts from `0` to `angle`), you can name it as you want
     $({ deg: 0 }).animate({ deg: angle }, {
         duration: 1,
-        step: function(now) {
+        step: function (now) {
             // in the step-callback (that is fired each step of the animation),
             // you can use the `now` paramter which contains the current
             // animation-position (`0` up to `angle`)
@@ -877,4 +851,24 @@ function animateRotate(angle) {
             });
         }
     });
+}
+
+function refreshPitchSelect () {
+    console.log('refreshPitchSelect')
+    $('#pitchSelect').empty();
+    var keys = Object.keys(pitches);
+    for (var i = 0; i < keys.length; i++) {
+        var pitch = pitches[keys[i]];
+        var option = $('<option>', { text: pitch.name, value: keys[i], selected: keys[i] == config.pitchId });
+        $('#pitchSelect').append(option);
+    }
+    setPitchInfo();
+}
+
+function setPitchInfo () {
+    var current = config.pitchId;
+    var pitch = pitches[current];
+    $('#pitchPresenter').text(pitch.name);
+    $('#pitchTitle').text(pitch.title);
+    $('#pitchImg').attr("src", pitch.imageUrl);
 }
